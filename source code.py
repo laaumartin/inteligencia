@@ -1,55 +1,66 @@
+import numpy as np
+import skfuzzy as skf
+import matplotlib.pyplot as plt
+from MFIS_Classes import *
 from MFIS_Read_Functions import *
 
-#Saving the input variables as all the fuzzy sets in a fuzzy-set-dictionary
-
-fuzzy_sets = readFuzzySetsFile('InputVarSets.txt')
-
-#Saving all the applications we need to evaluate in a list
-
-applications = readApplicationsFile()
-
+Inputsets=readFuzzySetsFile('Files/InputVarSets.txt')
+Risksets=readFuzzySetsFile('Files/Risks.txt')
+rules=readRulesFile()
+applications=readApplicationsFile()
 
 #Split the fuzzy sets in the dictionary and evaluate each of the applications in the corresponding set
-
-for setId, fuzzy_set in fuzzy_sets.items():
+for i in range(1):
+    app=applications[5]
 
     # STEP1: FUZZIFICATION
-    for app in applications:
+    for setId, fuzzy_set in Inputsets.items():
+        print(setId)
         for var_label, value in app.data:
             if var_label == fuzzy_set.var:
                 fuzzy_set.memDegree = skf.interp_membership(fuzzy_set.x, fuzzy_set.y, value)
                 print(fuzzy_set.memDegree)
 
-#step2 
-for app in applications:
-        print("Measurement for Application ID:", app.appId)
-        for rule in rules:
-            print("Rule:", rule.ruleName)
-            # Calculate the fitness of the rule
-            min_mem_degree = 1.0
-            for antecedent_setid in rule.antecedent:
-                antecedent_set = None
-                if antecedent_setid in app.data:
-                    antecedent_set = app.data[antecedent_setid]
-                else:
-                    antecedent_set = risk_fuzzy_sets.get(antecedent_setid) # esto no funciona lo del get 
+    # STEP2: RULE EVALUATION
+    print("Measurement for Application ID:", app.appId)
+    risk_functions=[]
+    for rule in rules:
+        print("Rule:", rule.ruleName)
+        antecedent_result=[] #here we store membership degree of each antecedent
+        for antecedent_setid in rule.antecedent: #taking the antecedents 1 by 1
+            for setId, fuzzy_set in Inputsets.items():
+                if antecedent_setid==setId:
+                    antecedent_result.append(fuzzy_set.memDegree)
+        print("Antecedent: ",antecedent_result)
+        #Let's compute similarity degree ==  evaluate the conjunction of the rule antecedents (min)
+        min_memDegree=1
+        for ant_memDegree in antecedent_result:
+            if ant_memDegree<min_memDegree:
+                min_memDegree=ant_memDegree
+        similarity_degree=min_memDegree
+        #Now let's cut the consequent membership function at the level of the antecedent degree
+        for setId, riskset in Risksets.items():
+            if setId==rule.consequent:
+                consequent_result=[rule.consequent, similarity_degree]
+                print(consequent_result)
+                #using clipping
+                conseq_membership_function = np.fmin(riskset.y, similarity_degree)
+                risk_functions.append(conseq_membership_function)
+                
+    #STEP3: COMPOSITION
+    #Now we unificate the output of all the rules, using aggregation
+    max_result_function=risk_functions[0]
+    for function in risk_functions:
+        max_result_function= np.fmax(function,max_result_function)
 
-                if antecedent_set:
-                    mem_degree = antecedent_set.memDegree
-                    print("Antecedent:", antecedent_setid, "Membership Degree:", mem_degree)
-                    min_mem_degree = min(min_mem_degree, mem_degree)
-                else:
-                    print("Antecedent set not found:", antecedent_setid)
+    x_output = []
+    for setId, riskset in Risksets.items():
+        x_output=riskset.x
+    print(x_output)
+    plt.plot(x_output, max_result_function)
+    plt.show()
+    #ESTO ES LO QUE ME DICE CHAT GPT (no funciona)
+    #for x_values, y_values in zip(x_output, max_result_function):
+        #plt.plot(x_values, y_values)
 
-            # Calculate the fitness of the rule
-            consequent_setid = rule.consequent
-            consequent_set = None
-            if consequent_setid in app.data:
-                consequent_set = app.data[consequent_setid]
-
-            if consequent_set:
-                rule_fit = min_mem_degree * consequent_set.memDegree
-                print("Rule Fit:", rule_fit)
-            else:
-                print("Consequent set not found:", consequent_setid)
-        print()
+    #plt.show()
