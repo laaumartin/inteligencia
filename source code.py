@@ -1,4 +1,5 @@
 from MFIS_Read_Functions import *
+import skfuzzy as fuzz
 
 Inputsets = readFuzzySetsFile('Files/InputVarSets.txt')
 Risksets = readFuzzySetsFile('Files/Risks.txt')
@@ -8,27 +9,26 @@ applications = readApplicationsFile()
 # Split the fuzzy sets in the dictionary and evaluate each of the applications in the corresponding set
 for i in range(1):
 
-    app = applications[5]
-    app.printApplication()
+    app = applications[12]
     # STEP1: FUZZIFICATION
     for setId, fuzzy_set in Inputsets.items():
-        print(setId)
+        #print(setId)
         for var_label, value in app.data:
             if var_label == fuzzy_set.var:
                 fuzzy_set.memDegree = skf.interp_membership(fuzzy_set.x, fuzzy_set.y, value)
-                print(fuzzy_set.memDegree)
+                #print(fuzzy_set.memDegree)
 
     # STEP2: RULE EVALUATION
-    print("Measurement for Application ID:", app.appId)
+    #print("Measurement for Application ID:", app.appId)
     risk_functions = []
     for rule in rules:
-        print("Rule:", rule.ruleName)
+        #print("Rule:", rule.ruleName)
         antecedent_result = []  # here we store membership degree of each antecedent
         for antecedent_setid in rule.antecedent:  # taking the antecedents 1 by 1
             for setId, fuzzy_set in Inputsets.items():
                 if antecedent_setid == setId:
                     antecedent_result.append(fuzzy_set.memDegree)
-        print("Antecedent: ", antecedent_result)
+        #print("Antecedent: ", antecedent_result)
         # Let's compute similarity degree ==  evaluate the conjunction of the rule antecedents (min)
         min_memDegree = 1
         for ant_memDegree in antecedent_result:
@@ -39,7 +39,7 @@ for i in range(1):
         for setId, riskset in Risksets.items():
             if setId == rule.consequent:
                 consequent_result = [rule.consequent, similarity_degree]
-                print(consequent_result)
+                #print(consequent_result)
                 # using clipping
                 conseq_membership_function = np.fmin(riskset.y, similarity_degree)
                 risk_functions.append(conseq_membership_function)
@@ -63,11 +63,22 @@ for i in range(1):
     plt.show()
 
     # STEP4: DEFUZZIFICATION
-    #now we need to get the centroid of the aggregated membership function
-    numerator = np.sum(x_output * max_result_function)  # Numerator of the centroid formula
-    denominator = np.sum(max_result_function)  # Denominator of the centroid formula
-    final_risk = numerator / denominator  # Centroid calculation
+    # Now we need to get the centroid of the aggregated membership function
+    centroid = fuzz.defuzz(x_output, max_result_function, 'centroid')
+    print("centroid is ", centroid)
 
-    print("Risk for Application ID ", app.appId,"is ",final_risk)
+    # Calculate the membership degree for each risk label using the centroid value
+    max_val = 0
+    final_risk = None
+    for setId, riskset in Risksets.items():
+        riskset.memDegree = skf.interp_membership(riskset.x, riskset.y, centroid)
+        print("Membership degree for", riskset.label, "is", riskset.memDegree)
+        if riskset.memDegree > max_val:
+            max_val = riskset.memDegree
+            final_risk = riskset.label
+
+    # Finally, the risk will be the maximum value among all the computed degrees
+    print("Risk for Application", app.appId, "is", final_risk)
+
 
 
