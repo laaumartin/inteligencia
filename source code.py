@@ -65,20 +65,15 @@ for i in range(1):
     # STEP4: DEFUZZIFICATION
     # Now we need to get the centroid of the aggregated membership function
     centroid = fuzz.defuzz(x_output, max_result_function, 'centroid')
-    print("centroid is ", centroid)
+    
 
     # Calculate the membership degree for each risk label using the centroid value
-    max_val = 0
-    final_risk = None
-    for setId, riskset in Risksets.items():
-        riskset.memDegree = skf.interp_membership(riskset.x, riskset.y, centroid)
-        print("Membership degree for", riskset.label, "is", riskset.memDegree)
-        if riskset.memDegree > max_val:
-            max_val = riskset.memDegree
-            final_risk = riskset.label
-
-    # Finally, the risk will be the maximum value among all the computed degrees
-    print("Risk for Application", app.appId, "is", final_risk)
-
+    with open("Results.txt", "w") as file:
+        final_risk = None
+        for setId, riskset in Risksets.items():
+            riskset.memDegree = skf.interp_membership(riskset.x, riskset.y, centroid)
+            # write the results in the file
+            file.write(f"Membership degree for {riskset.label} is {riskset.memDegree}\n")
+    
 
 
